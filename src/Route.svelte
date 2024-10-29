@@ -1,13 +1,14 @@
-<script>
+<script lang="ts">
     import { getContext, onDestroy } from "svelte";
     import { ROUTER } from "./contexts.js";
     import { canUseDOM } from "./utils.js";
 
-    export let path = "";
-    export let component = null;
+    let props = $props();
+    let path = $state(props.path ?? "");
+    let component = $state(props.component ?? null);
 
-    let routeParams = {};
-    let routeProps = {};
+    let routeParams = $state({});
+    let routeProps = $state({});
 
     const { registerRoute, unregisterRoute, activeRoute } = getContext(ROUTER);
 
@@ -18,19 +19,23 @@
         default: path === "",
     };
 
-    $: if ($activeRoute && $activeRoute.route === route) {
-        routeParams = $activeRoute.params;
+    $effect(() => {
+        if ($activeRoute && $activeRoute.route === route) {
+            routeParams = $activeRoute.params;
 
-        const { component: c, path, ...rest } = $$props;
-        routeProps = rest;
+            const { component: c, path, ...rest } = props;
+            routeProps = rest;
 
-        if (c) {
-            if (c.toString().startsWith("class ")) component = c;
-            else component = c();
+            if (c) {
+                if (c.toString().startsWith("class ")) component = c;
+                else component = c();
+            }
+
+            canUseDOM() &&
+                !$activeRoute.preserveScroll &&
+                window?.scrollTo(0, 0);
         }
-
-        canUseDOM() && !$activeRoute.preserveScroll && window?.scrollTo(0, 0);
-    }
+    });
 
     registerRoute(route);
 
@@ -42,13 +47,12 @@
 {#if $activeRoute && $activeRoute.route === route}
     {#if component}
         {#await component then resolvedComponent}
-            <svelte:component
-                this={resolvedComponent?.default || resolvedComponent}
-                {...routeParams}
-                {...routeProps}
-            />
+            {@render (resolvedComponent?.default || resolvedComponent)({
+                ...routeParams,
+                ...routeProps,
+            })}
         {/await}
     {:else}
-        <slot params={routeParams} />
+        {@render props.children?.({ params: { routeParams } })}
     {/if}
 {/if}

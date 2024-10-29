@@ -3,29 +3,46 @@
     import { HISTORY, LOCATION, ROUTER } from "./contexts.js";
     import { resolve, shouldNavigate } from "./utils.js";
 
-    export let to = "#";
-    export let replace = false;
-    export let state = {};
-    export let getProps = () => ({});
-    export let preserveScroll = false;
+    /**
+     * @typedef {Object} Props
+     * @property {string} [to]
+     * @property {boolean} [replace]
+     * @property {any} [state]
+     * @property {any} [getProps]
+     * @property {boolean} [preserveScroll]
+     * @property {import('svelte').Snippet<[any]>} [children]
+     */
+
+    /** @type {Props & { [key: string]: any }} */
+    let {
+        to = "#",
+        replace = false,
+        state = {},
+        getProps = () => ({}),
+        preserveScroll = false,
+        children,
+        ...rest
+    } = $props();
 
     const location = getContext(LOCATION);
     const { base } = getContext(ROUTER);
     const { navigate } = getContext(HISTORY);
     const dispatch = createEventDispatcher();
 
-    let href, isPartiallyCurrent, isCurrent, props;
-    $: href = resolve(to, $base.uri);
-    $: isPartiallyCurrent = $location.pathname.startsWith(href);
-    $: isCurrent = href === $location.pathname;
-    $: ariaCurrent = isCurrent ? "page" : undefined;
-    $: props = getProps({
-        location: $location,
-        href,
-        isPartiallyCurrent,
-        isCurrent,
-        existingProps: $$restProps,
-    });
+    let href = $derived(resolve(to, $base.uri)),
+        isPartiallyCurrent = $derived($location.pathname.startsWith(href)),
+        isCurrent = $derived(href === $location.pathname),
+        props = $derived(
+            getProps({
+                location: $location,
+                href,
+                isPartiallyCurrent,
+                isCurrent,
+                existingProps: rest,
+            })
+        );
+
+    let ariaCurrent = $derived(isCurrent ? "page" : undefined);
 
     const onClick = (event) => {
         dispatch("click", event);
@@ -39,12 +56,6 @@
     };
 </script>
 
-<a
-    {href}
-    aria-current={ariaCurrent}
-    on:click={onClick}
-    {...props}
-    {...$$restProps}
->
-    <slot active={!!ariaCurrent} />
+<a {href} aria-current={ariaCurrent} onclick={onClick} {...props} {...rest}>
+    {@render children?.({ active: !!ariaCurrent })}
 </a>
